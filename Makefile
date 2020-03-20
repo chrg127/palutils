@@ -1,43 +1,44 @@
-# Simple makefile to create getcolorvals and getpal binaries.
+#.SUFFIXES: .o .c
 
-default:
-	$(info Please select a target (getcolorvals | getpal))
+CC = gcc
+CFLAGS = -Wall
+LIBS = -lz -lpng
 
-getcolorvals: getcolorvals.o colorlist.o
-	gcc obj/getcolorvals.o obj/colorlist.o -o out/getcolorvals
+OBJDIR = obj
+BINDIR = out
 
-debuggetcval: getcolorvals_g.o colorlist_g.o
-	gcc obj/getcolorvals.o obj/colorlist.o -o out/getcolorvals_debug
+HEADERS = colorutils.h readpng.h writepng.h
 
-getpal: getpal.o readpng.o colorlist.o
-	gcc obj/getpal.o obj/readpng.o obj/colorlist.o -lz -lpng -o out/getpal
+_GETPALOBJ = getpal.o colorutils.o readpng.o
+GETPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_GETPALOBJ))
 
-debuggetpal: getpal_g.o readpng_g.o colorlist_g.o
-	gcc obj/getpal.o obj/readpng.o obj/colorlist.o -lz -lpng -o out/getpal_debug
+_MAKEPALOBJ = makepal.o colorutils.o writepng.o
+MAKEPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_MAKEPALOBJ))
 
-getcolorvals.o: getcolorvals.c
-	gcc -c getcolorvals.c -o obj/getcolorvals.o
+#rules start here
+default: #default: do nothing
+	$(info Please select a target (getcolorvals | getpal | makepal))
 
-getcolorvals_g.o: getcolorvals.c
-	gcc -g -c getcolorvals.c -o obj/getcolorvals.o
+#debug rules
+debug_getpal: CFLAGS += -g
+debug_getpal: getpal
 
-getpal.o: getpal.c
-	gcc -c getpal.c -o obj/getpal.o
+debug_makepal: CFLAGS += -g
+debug_makepal: makepal
 
-getpal_g.o: getpal.c
-	gcc -g -c getpal.c -o obj/getpal.o
+#the '%' is special. must be including headers too, so if they change, the .c files will get recompiled.
+$(OBJDIR)/%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-readpng.o: readpng.c
-	gcc -c readpng.c -o obj/readpng.o
+#with "make getpal", make will find this first. it'll understand that, to create getpal, it must create the object files. 
+getpal: $(GETPALOBJ)
+	$(CC) $(GETPALOBJ) -o $(BINDIR)/$@ $(LIBS) 
 
-readpng_g.o: readpng.c
-	gcc -g -c readpng.c -o obj/readpng.o
+makepal: $(MAKEPALOBJ)
+	$(CC) $(MAKEPALOBJ) -o $(BINDIR)/$@ $(LIBS)
 
-colorlist.o: colorlist.c
-	gcc -c colorlist.c -o obj/colorlist.o
 
-colorlist_g.o: colorlist.c
-	gcc -g -c colorlist.c -o obj/colorlist.o
-
+#if a "clean" file exists, make shouldn't do anything with it
+.PHONY: clean
 clean:
-	rm obj/* out/*
+	rm -f obj/* out/*

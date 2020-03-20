@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------
 
-   rpng - simple PNG display program                              readpng.h
+   wpng - simple PNG-writing program                             writepng.h
 
   ---------------------------------------------------------------------------
 
@@ -53,9 +53,64 @@
 
   ---------------------------------------------------------------------------*/
 
-/* prototypes for public functions in readpng.c */
-void            readpng_version_info(void);
-int             readpng_init(FILE *infile, unsigned long *pWidth, unsigned long *pHeight);
-int             readpng_get_bgcolor(unsigned char *bg_red, unsigned char *bg_green, unsigned char *bg_blue);
-unsigned char * readpng_get_image(/*double display_exponent, */int *pChannels, unsigned long *pRowbytes);
-void            readpng_cleanup(int free_image_data);
+#define TEXT_TITLE    0x01
+#define TEXT_AUTHOR   0x02
+#define TEXT_DESC     0x04
+#define TEXT_COPY     0x08
+#define TEXT_EMAIL    0x10
+#define TEXT_URL      0x20
+
+#define TEXT_TITLE_OFFSET        0
+#define TEXT_AUTHOR_OFFSET      72
+#define TEXT_COPY_OFFSET     (2*72)
+#define TEXT_EMAIL_OFFSET    (3*72)
+#define TEXT_URL_OFFSET      (4*72)
+#define TEXT_DESC_OFFSET     (5*72)
+
+typedef unsigned char   uch;
+typedef unsigned short  ush;
+typedef unsigned long   ulg;
+
+/* this is the main struct to be passed to any writepng functions. */
+typedef struct _mainprog_info {
+    long            width;
+    long            height;
+    FILE           *outfile;
+
+    void           *png_ptr;    /* these two should be modified by writepng only */
+    void           *info_ptr;
+    unsigned char  *image_data;
+    unsigned char **row_pointers;
+
+    double          gamma;
+    int             filter;
+    int             sample_depth;
+    int             interlaced;
+
+    int             have_time;
+    time_t          modtime;
+
+    int             have_bg;    /* background color */
+    unsigned char   bg_red;
+    unsigned char   bg_green;
+    unsigned char   bg_blue;
+
+    int             have_text;  /* png image can have embedded text, these are the supported fields */
+    char           *title;
+    char           *author;
+    char           *desc;
+    char           *copyright;
+    char           *email;
+    char           *url;
+
+    jmp_buf         jmpbuf;
+} mainprog_info;
+
+
+/* prototypes for public functions in writepng.c */
+void writepng_version_info(void);
+int  writepng_init(mainprog_info *mainprog_ptr, int color_type);
+int  writepng_encode_image(mainprog_info *mainprog_ptr);
+int  writepng_encode_row(mainprog_info *mainprog_ptr);
+int  writepng_encode_finish(mainprog_info *mainprog_ptr);
+void writepng_cleanup(mainprog_info *mainprog_ptr);
