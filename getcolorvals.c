@@ -1,14 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "colorlist.h"
+#include "colorutils.h"
 
 #define CVALLEN 8   /* lenght in characters of a color value */
 
 /* function prototypes */
 void getvalues(FILE *f);
 int collectvalue(FILE *f);
-int ishexdigit(char c);
 
 int main(int argc, char **argv)
 {
@@ -54,7 +53,7 @@ void getvalues(FILE *f)
 int collectvalue(FILE *f)
 {
     char valuestr[CVALLEN+1]; /* +1 for terminating character */
-    int i, c, value;
+    int i, c;
     
     i = 0;
     while (ishexdigit(c = getc(f)) && i != CVALLEN) /* collect value */
@@ -63,35 +62,11 @@ int collectvalue(FILE *f)
         return 1;
     valuestr[i] = '\0';
     
-    if (colorlist_checkdup(valuestr) == 0) { /* insert the value if a copy hasn't been inserted already */
-        if (colorlist_insert(valuestr) == 1) {
-            fputs("ERROR: Out of memory\n", stderr);
-            exit(1);
-        }
-    }
-    else
+    if (colorlist_insert_str(valuestr) == 2) {
+        fputs("ERROR: Out of memory\n", stderr);
+        exit(1);
+    } else
         return 1;
     return 0;
-}
-
-/* ishexdigit: check if a character is a valid hex digit. */
-int ishexdigit(char c)
-{
-    if (isdigit(c))
-        return 1;
-    switch (toupper(c))
-    {
-    case 'A':
-    case 'B':
-    case 'C':
-    case 'D':
-    case 'E':
-    case 'F':
-        return 1;
-        break;
-    default:
-        return 0;
-        break;
-    }
 }
 

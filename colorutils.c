@@ -234,7 +234,7 @@ void strtocolor(char *s, Color *c)
     strncpy(v, s+4, 2);
     c->blue = (unsigned char) htoi(v);
     if (len == 8) {
-        strncpy(v, s+4, 2);
+        strncpy(v, s+6, 2);
         c->alpha = (unsigned char) htoi(v);
     } else
         c->alpha = 0xFF;

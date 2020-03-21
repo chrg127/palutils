@@ -17,7 +17,7 @@
 #include "writepng.h"
 #include "colorutils.h"
 
-#define DEBUG
+//#define DEBUG
 
 static mainprog_info maininfo;
 
@@ -29,8 +29,8 @@ int main(int argc, char **argv)
 {
     FILE *infile, *image;
     unsigned char r, g, b, a;
-    char color[10];
     int i;
+    char image_name[] = "palette.png";
     
     colorlist_init();
     infile = image = NULL;
@@ -56,8 +56,7 @@ int main(int argc, char **argv)
     printf("Size: %ld\n", colorlist_size());
 #endif
 
-
-    image = fopen("palette.png", "wb");
+    image = fopen(image_name, "wb");
     if (!image) {
         fprintf(stderr, "ERROR: couldn't create output image\n");
         goto cleanup;
@@ -80,10 +79,10 @@ int main(int argc, char **argv)
 
     writepng_init(&maininfo, PNG_COLOR_TYPE_RGBA);
     
+    maininfo.image_data = malloc(colorlist_size()*4*sizeof(char));
     colorlist_rewind();
     i = 0;
-    while ((color = colorlist_getnext()) != NULL) {
-        getrgb(color, &r, &g, &b, &a);
+    while (colorlist_getnext(&r, &g, &b, &a) != 1) {
         maininfo.image_data[i++] = r;
         maininfo.image_data[i++] = g;
         maininfo.image_data[i++] = b;
@@ -93,9 +92,10 @@ int main(int argc, char **argv)
      * to get an image with more than one row, you'd have to do another loop,
      * one which loops over each row */
     /* get image data for one row and call writepng_encode_row() */
-    png_write_row(maininfo);
-
-    writepng_encode_finish(maininfo);
+    writepng_encode_row(&maininfo);
+    writepng_encode_finish(&maininfo);
+    free(maininfo.image_data);
+    printf("Wrote list to %s file\n", image_name);
 
 cleanup:
     if (infile)
@@ -103,7 +103,7 @@ cleanup:
     if (image)
         fclose(image);
     colorlist_free();
-    writepng_cleanup(maininfo);
+    writepng_cleanup(&maininfo);
     return 0;
 }
 
@@ -111,29 +111,32 @@ cleanup:
  * returns 0 on success, 1 on list format error, 2 on memory error */
 int readcolors(FILE *infile, int interactive)
 {
-    char s[10]; /* 10 allows for the longest character line that can be a color (+ terminator) */
-    int line;
+    char *s;
+    int linen, len;
+    size_t n;
     
-    line = 0;
-    while(fgets(s, 10, infile) != NULL) {
-        ++line;
+    linen = 0;
+    s = NULL;
+    while((len = getline(&s, &n, infile)) != -1) {
+        ++linen;
 
         if (interactive && s[0] == '\n')
             break;  /* in interaction mode, a line with nothing in it will end interaction */
+        
+        if (s[len-1] == '\n') /* remove newline */
+            s[len-1] = '\0';
 
-        while (*++s != '\n') /* strip newline */
-            ;
-        *s = '\0';
         if (!iscolor(s)) {
-            fprintf(stderr, "ERROR: list format error at line %d\n", line);
+            fprintf(stderr, "ERROR: list format error at line %d\n", linen);
             return 1;
         }
 
-        if (colorlist_insert_str(s) == 2) {
+        if (colorlist_insert_str(s) == 2) { /* 1 is for already in list. it can be ignored. */
             fprintf(stderr, "ERROR: out of memory\n");
             return 2;
         }
     }
+    free(s);
 
     return 0;
 }
