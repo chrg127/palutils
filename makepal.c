@@ -21,34 +21,42 @@
 
 static mainprog_info maininfo;
 
-int readcolors(FILE * infile, int interactive);
-int iscolor(char *s);
-int ishexdigit(char c);
+int readcolors(FILE *);
 
 int main(int argc, char **argv)
 {
-    FILE *infile, *image;
-    unsigned char r, g, b, a;
-    int i;
+    FILE *infile, *image_file;
+    int i, retval, exitval;
     char image_name[] = "palette.png";
+    unsigned char r, g, b, a;
     
-    colorlist_init();
-    infile = image = NULL;
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [LIST FILE]\n", *argv);
+        return 1; 
+    }
 
+    exitval = 0;
+    if (colorlist_init() == 2)
+        goto memerr;
+
+    infile = image_file = NULL;
     if (argc == 1) {  /* read from stdin */
-        if (readcolors(stdin, 1) != 0)
-            goto cleanup;
+        retval = readcolors(stdin);
+        if (retval == 1)
+            goto formaterr;
+        if (retval == 2)
+            goto memerr;
     } else if (argc == 2) { /* read from file */
         infile = fopen(argv[1], "r");
         if (!infile) {
             fprintf(stderr, "ERROR: couldn't open file %s\n", argv[1]);
-            goto cleanup;
+            goto defaulterr;
         }
-        if (readcolors(infile, 0) != 0)
-            goto cleanup;
-    } else {
-        fprintf(stderr, "Usage: %s [LIST FILE]\n", *argv);
-        goto cleanup;
+        retval = readcolors(infile);
+        if (retval == 1)
+            goto formaterr;
+        if (retval == 2)
+            goto memerr;
     }
     
 #ifdef DEBUG
@@ -56,16 +64,16 @@ int main(int argc, char **argv)
     printf("Size: %ld\n", colorlist_size());
 #endif
 
-    image = fopen(image_name, "wb");
-    if (!image) {
-        fprintf(stderr, "ERROR: couldn't create output image\n");
-        goto cleanup;
+    image_file = fopen(image_name, "wb");
+    if (!image_file) {
+        fprintf(stderr, "ERROR: couldn't create image file\n");
+        goto defaulterr;
     }
 
     /* set up the simplest possible mainprog_info: we want only an IHDR chunk, an IDAT chunk and an IEND chunk */
     maininfo.width        = colorlist_size();
     maininfo.height       = 1;
-    maininfo.outfile      = image;
+    maininfo.outfile      = image_file;
     maininfo.filter       = 0;
     maininfo.sample_depth = 8;
     maininfo.interlaced   = 0;
@@ -77,9 +85,16 @@ int main(int argc, char **argv)
     maininfo.have_text  = 0;
     maininfo.gamma      = 0.0;
 
-    writepng_init(&maininfo, PNG_COLOR_TYPE_RGBA);
-    
+    retval = writepng_init(&maininfo, PNG_COLOR_TYPE_RGBA);
+    if (retval == 2)
+        goto libpngerr;
+    if (retval == 4)
+        goto memerr;
+
     maininfo.image_data = malloc(colorlist_size()*4*sizeof(char));
+    if (!maininfo.image_data)
+        goto memerr;
+        
     colorlist_rewind();
     i = 0;
     while (colorlist_getnext(&r, &g, &b, &a) != 1) {
@@ -92,24 +107,44 @@ int main(int argc, char **argv)
      * to get an image with more than one row, you'd have to do another loop,
      * one which loops over each row */
     /* get image data for one row and call writepng_encode_row() */
-    writepng_encode_row(&maininfo);
-    writepng_encode_finish(&maininfo);
-    free(maininfo.image_data);
-    printf("Wrote list to %s file\n", image_name);
+    if (writepng_encode_row(&maininfo) == 2)
+        goto libpngerr;
 
+    if (writepng_encode_finish(&maininfo) == 2)
+        goto libpngerr;
+
+    printf("Wrote list to %s file\n", image_name);
+    goto cleanup;
+
+/* yes, there are a lot labels for error handling... but this avoids the issue of writing error messages everywhere... */
+memerr:
+    fputs("ERROR: out of memory\n", stderr);
+    goto defaulterr;
+formaterr:
+    fputs("ERROR: list format error\n", stderr);
+    goto defaulterr;
+libpngerr:
+    fputs("ERROR: libpng error\n", stderr);
+    goto defaulterr;
+defaulterr:
+    ++exitval;
+    goto cleanup;
+    
 cleanup:
     if (infile)
         fclose(infile);
-    if (image)
-        fclose(image);
+    if (image_file)
+        fclose(image_file);
+    if (maininfo.image_data)
+        free(maininfo.image_data);
     colorlist_free();
     writepng_cleanup(&maininfo);
-    return 0;
+    return exitval;
 }
 
 /* readcolors: get the color values from a list file
  * returns 0 on success, 1 on list format error, 2 on memory error */
-int readcolors(FILE *infile, int interactive)
+int readcolors(FILE *infile)
 {
     char *s;
     int linen, len;
@@ -120,21 +155,14 @@ int readcolors(FILE *infile, int interactive)
     while((len = getline(&s, &n, infile)) != -1) {
         ++linen;
 
-        if (interactive && s[0] == '\n')
-            break;  /* in interaction mode, a line with nothing in it will end interaction */
-        
         if (s[len-1] == '\n') /* remove newline */
             s[len-1] = '\0';
 
-        if (!iscolor(s)) {
-            fprintf(stderr, "ERROR: list format error at line %d\n", linen);
+        if (!iscolor(s))
             return 1;
-        }
 
-        if (colorlist_insert_str(s) == 2) { /* 1 is for already in list. it can be ignored. */
-            fprintf(stderr, "ERROR: out of memory\n");
+        if (colorlist_insert_str(s) == 2) /* 1 is for already in list. it can be ignored. */
             return 2;
-        }
     }
     free(s);
 

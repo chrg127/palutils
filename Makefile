@@ -30,7 +30,7 @@ debug_makepal: CFLAGS += -g
 debug_makepal: makepal
 
 debug_getcval: CFLAGS += -g
-debug_getcval: getcval
+debug_getcval: getcolorvals
 
 #the '%' is special. must be including headers too, so if they change, the .c files will get recompiled.
 $(OBJDIR)/%.o: %.c $(HEADERS)

@@ -18,8 +18,7 @@
 #include "readpng.h"
 #include "colorutils.h"
 
-void getcolors(FILE *img, char *fname);
-void insertcolor(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+int getcolors(FILE *img, char *fname);
 
 int main(int argc, char **argv)
 {
@@ -29,10 +28,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: %s [image files...]\n", *argv);
         return 1;
     }
-    if (colorlist_init() == 1) {
-        fputs("ERROR: Out of memory\n", stderr);
-        return 1;
-    }
+    if (colorlist_init() == 2)
+        goto memerr;
 
     while (--argc > 0) {    /* parse arguments */
         ++argv;
@@ -41,7 +38,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "ERROR: Can't read %s\n", argv[1]);
             continue;
         }
-        getcolors(image_file, *argv);
+        if (getcolors(image_file, *argv) == 1)
+            goto memerr;
         fclose(image_file);
     }
 
@@ -49,10 +47,15 @@ int main(int argc, char **argv)
     colorlist_free();
 
     return 0;
+
+memerr:
+    fputs("ERROR: Out of memory\n", stderr);
+    colorlist_free();
+    return 1;
 }
 
-/* getcolors: read the PNG image file and extract its colors */
-void getcolors(FILE *img, char *fname)
+/* getcolors: read the PNG image file and extract its colors. returns 1 for memory error */
+int getcolors(FILE *img, char *fname)
 {
     int           err, channels;
     unsigned long width, height, rowbytes;
@@ -67,9 +70,8 @@ void getcolors(FILE *img, char *fname)
     case 2:
         fprintf(stderr, "ERROR: %s: Corrupted PNG file\n", fname);
         goto cleanup;
-    case 4:
-        fputs("ERROR: Out of memory\n", stderr);
-        exit(1);
+    case 4:  /* memory error */
+        return 1;
     default: /* no error */
         break;
     }
@@ -78,11 +80,9 @@ void getcolors(FILE *img, char *fname)
      * the pixels in turn are represented of red, green and blue values.
      * if there are 4 channels, there's an alpha value, too, and must be taken in consideration. */
     image_data = readpng_get_image(&channels, &rowbytes); /* get image data */
-    if (!image_data) {
-        fputs("ERROR: Out of memory\n", stderr);
-        exit(1);
-    }
-    data_end = image_data + width*height*channels;        /* find where it ends */
+    if (!image_data)
+        return 1; /* memory error */
+    data_end = image_data + width*height*channels; /* find where it ends */
 
     alpha = 0xFF;   /* with no alpha channel, the alpha always remains at FF */
     while(image_data < data_end) {  /* read data and get color values */
@@ -91,25 +91,17 @@ void getcolors(FILE *img, char *fname)
         blue = *image_data++;
         if (channels == 4)
             alpha = *image_data++;
-        insertcolor(red, green, blue, alpha);
+#ifdef DEBUG
+        fprintf(stderr, "getcolors: %hhx %hhx %hhx %hhx %s\n", red, green, blue, alpha);
+#endif
+        if (colorlist_insert_vals(red, green, blue, alpha) == 2)
+            return 1; /* memory error */
     }
     readpng_cleanup(1); /* finished reading data, do cleanup */
 
 cleanup:
     readpng_cleanup(0);
-}
 
-/* insertcolor: insert a color value into the array color_list */
-void insertcolor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
-{
-#ifdef DEBUG
-    fprintf(stderr, "insertcolor: %hhx %hhx %hhx %hhx %s\n", r, g, b, a);
-#endif
-    
-    if (colorlist_insert_vals(r, g, b, a) == 2) {
-        fputs("ERROR: Out of memory\n", stderr);
-        exit(1);
-    }
+    return 0;
 }
-
 

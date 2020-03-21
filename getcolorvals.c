@@ -3,70 +3,65 @@
 #include <ctype.h>
 #include "colorutils.h"
 
-#define CVALLEN 8   /* lenght in characters of a color value */
-
 /* function prototypes */
-void getvalues(FILE *f);
-int collectvalue(FILE *f);
+int findvalues(FILE *f);
 
 int main(int argc, char **argv)
 {
     FILE *f;
+    int retval;
     
-    if ((colorlist_init()) == 1) {
-        fprintf(stderr, "ERROR: Out of memory\n");
-        return 1;
-    }
+    if (colorlist_init() == 2)
+        goto memerr;
 
-    if (argc == 1) { /* no arguments: get values from stdin */
-        getvalues(stdin);
+    if (argc == 1) {        /* no arguments: get values from stdin */
+        retval = findvalues(stdin);
+        if (retval)
+            goto memerr;
     } else {
-        while (--argc) {
+        while (--argc) {    /* get values from every file passed as arguments */
             f = fopen(*++argv, "r");
             if (!f) {
                 fprintf(stderr, "ERROR: Couldn't open file %s\n", *argv);
                 continue;
             }
-            getvalues(f);
+            retval = findvalues(f);
+            if (retval)
+                goto memerr;
             fclose(f);
         }
     }
     
     colorlist_print();
-
     colorlist_free();
     return 0;
+
+memerr:
+    fputs("ERROR: Out of memory\n", stderr);
+    colorlist_free();
+    return 1;
 }
 
-void getvalues(FILE *f)
+/* returns 1 for memory error */
+int findvalues(FILE *f)
 {
-    int c;
-
-    while ((c = getc(f)) != EOF) /* get values */
-        if (c == '#')
-            collectvalue(f);
-}
-
-/* collectvalue: collect a color value and insert into color value array
- * returns 1 on error, 0 on success
- */
-int collectvalue(FILE *f)
-{
-    char valuestr[CVALLEN+1]; /* +1 for terminating character */
+    char color[9]; /* +1 for terminating character */
     int i, c;
-    
-    i = 0;
-    while (ishexdigit(c = getc(f)) && i != CVALLEN) /* collect value */
-        valuestr[i++] = toupper(c);
-    if (i != CVALLEN && i != CVALLEN-2) /* a color value is either 6 or 8 characters */
-        return 1;
-    valuestr[i] = '\0';
-    
-    if (colorlist_insert_str(valuestr) == 2) {
-        fputs("ERROR: Out of memory\n", stderr);
-        exit(1);
-    } else
-        return 1;
+
+    while ((c = getc(f)) != EOF) { /* get values */
+        if (c == '#') {
+            i = 0;
+            while (ishexdigit(c = getc(f)) && i != 8) /* collect value */
+                color[i++] = toupper(c);
+            color[i] = '\0';
+
+            if (!iscolor(color))
+                continue;
+            
+            if (colorlist_insert_str(color) == 2)
+                return 1;
+        }
+    }
     return 0;
 }
 

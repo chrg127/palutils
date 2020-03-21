@@ -67,6 +67,7 @@
 
 /* local prototype */
 static void writepng_error_handler(png_structp png_ptr, png_const_charp msg);
+static void writepng_add_text(png_text *t, int *i, int compression, char *key, char *text);
 
 void writepng_version_info(void)
 {
@@ -141,42 +142,18 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
         png_text text[6];
         int num_text = 0;
 
-        if (mainprog_ptr->have_text & TEXT_TITLE) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "Title";
-            text[num_text].text = mainprog_ptr->title;
-            ++num_text;
-        }
-        if (mainprog_ptr->have_text & TEXT_AUTHOR) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "Author";
-            text[num_text].text = mainprog_ptr->author;
-            ++num_text;
-        }
-        if (mainprog_ptr->have_text & TEXT_DESC) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "Description";
-            text[num_text].text = mainprog_ptr->desc;
-            ++num_text;
-        }
-        if (mainprog_ptr->have_text & TEXT_COPY) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "Copyright";
-            text[num_text].text = mainprog_ptr->copyright;
-            ++num_text;
-        }
-        if (mainprog_ptr->have_text & TEXT_EMAIL) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "E-mail";
-            text[num_text].text = mainprog_ptr->email;
-            ++num_text;
-        }
-        if (mainprog_ptr->have_text & TEXT_URL) {
-            text[num_text].compression = PNG_TEXT_COMPRESSION_NONE;
-            text[num_text].key = "URL";
-            text[num_text].text = mainprog_ptr->url;
-            ++num_text;
-        }
+        if (mainprog_ptr->have_text & TEXT_TITLE)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Title", mainprog_ptr->title);
+        if (mainprog_ptr->have_text & TEXT_AUTHOR)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Author", mainprog_ptr->author);
+        if (mainprog_ptr->have_text & TEXT_DESC)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Description", mainprog_ptr->desc);
+        if (mainprog_ptr->have_text & TEXT_COPY)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Copyright", mainprog_ptr->copyright);
+        if (mainprog_ptr->have_text & TEXT_EMAIL)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "E-mail", mainprog_ptr->email);
+        if (mainprog_ptr->have_text & TEXT_URL)
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "URL", mainprog_ptr->url);
         png_set_text(png_ptr, info_ptr, text, num_text);
     }
 
@@ -198,6 +175,14 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
     mainprog_ptr->info_ptr = info_ptr;
 
     return 0;
+}
+
+static void writepng_add_text(png_text *t, int *i, int compression, char *key, char *text)
+{
+    t[*i].compression = compression;
+    t[*i].key = key;
+    t[*i].text = text;
+    ++(*i);
 }
 
 /* only for interlaced images
