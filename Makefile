@@ -2,7 +2,9 @@
 
 CC = gcc
 CFLAGS = -Wall
-LIBS = -lz -lpng
+SHLIBS = -lz -lpng
+STLIBS = -l:libpng.a -l:libz.a
+LIBS = $(STLIBS)
 
 OBJDIR = obj
 BINDIR = out
