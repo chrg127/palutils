@@ -71,12 +71,16 @@ static void writepng_add_text(png_text *t, int *i, int compression, char *key, c
 
 void writepng_version_info(void)
 {
-    fprintf(stderr, "   Compiled with libpng %s; using libpng %s.\n", PNG_LIBPNG_VER_STRING, png_libpng_ver);
-    fprintf(stderr, "   Compiled with zlib %s; using zlib %s.\n", ZLIB_VERSION, zlib_version);
+    fprintf(stderr, "   Compiled with libpng %s; using libpng %s.\n", 
+            PNG_LIBPNG_VER_STRING, png_libpng_ver);
+    fprintf(stderr, "   Compiled with zlib %s; using zlib %s.\n", 
+            ZLIB_VERSION, zlib_version);
 }
 
-/* returns 0 for success, 2 for libpng problem, 4 for out of memory; note that outfile might be stdout
- * valid color_type values: PNG_COLOR_TYPE_GRAY, PNG_COLOR_TYPE_RGB, PNG_COLOR_TYPE_RGB_ALPHA */
+/* returns 0 for success, 2 for libpng problem, 4 for out of memory; 
+ * note that outfile might be stdout.
+ * valid color_type values: PNG_COLOR_TYPE_GRAY, PNG_COLOR_TYPE_RGB, 
+ * PNG_COLOR_TYPE_RGB_ALPHA */
 int writepng_init(mainprog_info *mainprog_ptr, int color_type)
 {
     png_structp png_ptr; /* note:  temporary variables! */
@@ -84,7 +88,8 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
     int interlace_type;
     
     /* create the png struct and set up a custom error handler */
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, mainprog_ptr, writepng_error_handler, NULL);
+    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, mainprog_ptr, 
+            writepng_error_handler, NULL);
     if (!png_ptr)
         return 4;   /* out of memory */
 
@@ -94,8 +99,10 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
         return 4;   /* out of memory */
     }
 
-    /* setjmp() must be called in every function that calls a PNG-writing libpng function, unless an alternate error handler was installed--
-     * but compatible error handlers must either use longjmp() themselves (as in this program) or exit immediately, so here we go: */
+    /* setjmp() must be called in every function that calls a PNG-writing 
+     * libpng function, unless an alternate error handler was installed--
+     * but compatible error handlers must either use longjmp() themselves 
+     * (as in this program) or exit immediately, so here we go: */
     if (setjmp(mainprog_ptr->jmpbuf)) {
         png_destroy_write_struct(&png_ptr, &info_ptr);
         return 2;
