@@ -132,7 +132,10 @@ int printcolors(unsigned char *imgdata, int w, int h, int ch)
 
 int checkdup(Color **arr, size_t currpos, Color c)
 {
-    for (int i = 0; i < currpos; i++) {
+    size_t i;
+    if (!arr || currpos == 0)
+        return 0;
+    for (i = 0; i < currpos; i++) {
         if (color_colorcmp(&c, arr[i]))
             return 1;   /* found */
     }

@@ -1,7 +1,7 @@
 #.SUFFIXES: .o .c
 
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -Wextra
 SHLIBS = -lz -lpng
 STLIBS = -l:libpng.a -l:libz.a
 LIBS = $(SHLIBS)

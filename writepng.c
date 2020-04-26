@@ -150,21 +150,28 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
         int num_text = 0;
 
         if (mainprog_ptr->have_text & TEXT_TITLE)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Title", mainprog_ptr->title);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "Title", mainprog_ptr->title);
         if (mainprog_ptr->have_text & TEXT_AUTHOR)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Author", mainprog_ptr->author);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "Author", mainprog_ptr->author);
         if (mainprog_ptr->have_text & TEXT_DESC)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Description", mainprog_ptr->desc);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "Description", mainprog_ptr->desc);
         if (mainprog_ptr->have_text & TEXT_COPY)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "Copyright", mainprog_ptr->copyright);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "Copyright", mainprog_ptr->copyright);
         if (mainprog_ptr->have_text & TEXT_EMAIL)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "E-mail", mainprog_ptr->email);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "E-mail", mainprog_ptr->email);
         if (mainprog_ptr->have_text & TEXT_URL)
-            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, "URL", mainprog_ptr->url);
+            writepng_add_text(text, &num_text, PNG_TEXT_COMPRESSION_NONE, 
+                    "URL", mainprog_ptr->url);
         png_set_text(png_ptr, info_ptr, text, num_text);
     }
 
-    png_write_info(png_ptr, info_ptr); /* write all chunks up to (but not including) first IDAT */
+    /* write all chunks up to (but not including) first IDAT */
+    png_write_info(png_ptr, info_ptr);
 
     /* if we wanted to write any more text info *after* the image data, we
      * would set up text struct(s) here and call png_set_text() again, with
@@ -218,7 +225,7 @@ int writepng_encode_image(mainprog_info *mainprog_ptr)
     return 0;
 }
 
-/* for non-interlaced png images
+/* Encodes a single row. For non-interlaced PNG images.
  * returns 0 if succeeds, 2 if libpng problem */
 int writepng_encode_row(mainprog_info *mainprog_ptr)  /* NON-interlaced only! */
 {
@@ -239,14 +246,15 @@ int writepng_encode_row(mainprog_info *mainprog_ptr)  /* NON-interlaced only! */
     return 0;
 }
 
-/* NOT to be used with interlaced PNG images
+/* Finishes encoding of row for NON-intercaled images.
  * returns 0 if succeeds, 2 if libpng problem */
 int writepng_encode_finish(mainprog_info *mainprog_ptr)
 {
     png_structp png_ptr = (png_structp) mainprog_ptr->png_ptr;
     png_infop info_ptr = (png_infop) mainprog_ptr->info_ptr;
 
-    /* setjmp() must be called in every function that calls a PNG-writing libpng function */
+    /* setjmp() must be called in every function that calls a 
+     * PNG-writing libpng function */
     if (setjmp(mainprog_ptr->jmpbuf)) {
         png_destroy_write_struct(&png_ptr, &info_ptr);
         mainprog_ptr->png_ptr = NULL;

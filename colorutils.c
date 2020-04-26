@@ -83,7 +83,11 @@ char * color_formatcolor(char *s)
 
 Color * color_colordup(Color *c)
 {
+    if (!c)
+        return NULL;
     Color *new = malloc(sizeof(Color));
+    if (!new)
+        return NULL;
     new->red = c->red;
     new->green = c->green;
     new->blue = c->blue;
