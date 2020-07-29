@@ -5,7 +5,6 @@
 
 #define STARTSIZE 16
 
-/* function prototypes */
 int findvaluesfile(FILE *fin, Color **arr, size_t *currpos, size_t *arrlen);
 int findnextvalue(FILE *f, Color *col);
 int checkdup(Color *arr, size_t currpos, Color c);

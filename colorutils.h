@@ -7,11 +7,16 @@
 #ifndef COLORUTILS_H
 #define COLORUTILS_H
 
-typedef struct {
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
-    unsigned char alpha;
+//#include <stdint.h>
+
+typedef union {
+    unsigned int value;
+    struct {
+        unsigned char red;
+        unsigned char green;
+        unsigned char blue;
+        unsigned char alpha;
+    };
 } Color;
 
 #define COLOR_MEMERR 2

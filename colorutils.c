@@ -48,7 +48,7 @@ void color_strtoval(char *s, unsigned char *red, unsigned char *green,
 {
     char v[3]; /* container for strings of single values */
     int len = strlen(s);
-    
+
     v[2] = '\0';
     if (s[0] == '#') {  /* check for leading '#' */
         ++s;
@@ -67,18 +67,16 @@ void color_strtoval(char *s, unsigned char *red, unsigned char *green,
         *alpha = 0xFF;
 }
 
-char * color_formatcolor(char *s)
+void color_formatcolor(char *s)
 {
     int i;
 
     if (s[0] == '#')
         memmove(s, s+1, strlen(s));
-    i = 0;
-    while (s[i] != '\0') {
+    for (i = 0; s[i]; i++)
         if (s[i] > 'a' && s[i] < 'f')
             s[i] = toupper(s[i]);
     }
-    return s;
 }
 
 Color * color_colordup(Color *c)
