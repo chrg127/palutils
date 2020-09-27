@@ -12,133 +12,110 @@
 #include <stdlib.h>
 #include <string.h>
 #include <png.h>
+#include "pngimage.h"
+#include "color.h"
+#include "debug.h"
 
-#include "readpng.h"
-#include "colorutils.h"
+const Image pngimage_default = { NULL, 0, 0, NULL, NULL, 0, 0, 0 };
 
-int getcolors(FILE *fimg, char *fname);
-int printcolors(unsigned char *imgdata, int w, int h, int ch);
-int checkdup(Color **arr, size_t currpos, Color c);
+int printcolors(Image *img);
+int checkdup(Color *arr, size_t currpos, Color c);
+
+/* Gets and printf every color in an image. It needs the image's data.
+ * Returns 1 for memory error. */
+int printcolors(Image *img)
+{
+    unsigned char *data, *data_end;
+    Color         *colorarr, col;
+    size_t        currpos;
+
+    currpos = 0;
+    colorarr = calloc(img->w * img->h, sizeof(Color));
+    if (!colorarr)
+        return 1; /* memory error */
+
+    /* The image data is composed of bytes representing every pixel in the image.
+     * The pixels in turn are represented of red, green and blue values. If there are
+     * 4 channels, there's an alpha value too and must be taken in consideration. */
+    data = img->data;
+    data_end = img->data + img->w * img->h * img->ch;
+    col.alpha = 0xFF;
+    while(data < data_end) {     /* read data and get color values */
+        col.red = *data++;
+        col.green = *data++;
+        col.blue = *data++;
+        if (img->ch == 4)
+            col.alpha = *data++;
+        if (checkdup(colorarr, currpos, col))
+            continue;
+        colorarr[currpos++].value = col.value;
+    }
+
+    for (size_t i = 0; i < currpos; i++)
+        printf("%08X\n", colorarr[i].value);
+    free(colorarr);
+    return 0;
+}
+
+int checkdup(Color *arr, size_t currpos, Color c)
+{
+    if (!arr || currpos == 0)
+        return 0;
+    for (size_t i = 0; i < currpos; i++)
+        if (arr[i].value == c.value)
+            return 1;   /* found */
+    return 0;   /* not found */
+}
 
 int main(int argc, char **argv)
 {
-    FILE *image_file;
+    FILE *infile;
+    int err;
+    Image img;
 
     if (argc < 2) {
         fprintf(stderr, "Usage: %s [image files...]\n", *argv);
         return 1;
     }
 
-    while (--argc > 0) {    /* parse arguments */
-        ++argv;
-        image_file = fopen(*argv, "rb");
-        if (!image_file) {
-            fprintf(stderr, "ERROR: Couldn't open %s\n", argv[1]);
+    /* parse arguments */
+    while (++argv, --argc > 0) {
+        img = pngimage_default;
+        infile = fopen(*argv, "rb");
+        if (!infile) {
+            error("couldn't open %s\n", *argv);
             continue;
         }
 
-        if (getcolors(image_file, *argv) == 1) {
-            fputs("ERROR: Out of memory\n", stderr);
+        err = pngimage_read_init(&img, infile);
+        switch (err) {
+        case IMAGE_ERR_NOTIMAGE:
+            error("%s: not an image file\n", *argv);
+            fclose(infile);
+            continue;
+        case IMAGE_ERR_NOMEM: 
+            error("out of memory\n");
+            return 1;
+        case IMAGE_ERR_GENERIC:
+            error("libpng error\n");
             return 1;
         }
 
-        fclose(image_file);
+        err = pngimage_read_fillimgdata(&img);
+        if (err != 0) {
+            error("libpng error\n");
+            return 1;
+        }
+
+        err = printcolors(&img);
+        if (err != 0) {
+            error("out of memory\n");
+            return 1;
+        }
+
+        pngimage_read_cleanup(&img);
+        fclose(infile);
     }
-    
     return 0;
-}
-
-/* Reads the PNG image file and extract its colors. 
- * Returns 1 for memory error */
-int getcolors(FILE *fimg, char *fname)
-{
-    int           err, channels;
-    unsigned long width, height, rowbytes;
-    unsigned char *imgdata;
-    
-    /* init gets the width and height of the PNG file and does 
-     * a few error checks */
-    err = readpng_init(fimg, &width, &height);
-    switch(err) {
-    case 1:
-        fprintf(stderr, "ERROR: %s: Not a PNG file\n", fname);
-        goto cleanup;
-    case 2:
-        fprintf(stderr, "ERROR: %s: Corrupted PNG file\n", fname);
-        goto cleanup;
-    case 4:  /* Memory error */
-        return 1;
-    }
-    
-    /* Get data and allocate the color array. */
-    imgdata = readpng_get_image(&channels, &rowbytes);
-    if (!imgdata)
-        return 1;
-    
-    err = printcolors(imgdata, width, height, channels);
-    if (err)
-        return 1;
-
-    readpng_cleanup(1); /* Finished reading data, do cleanup */
-
-cleanup:
-    readpng_cleanup(0);
-
-    return 0;
-}
-
-/* Gets and printf every color in an image. It needs the image's data.
- * Returns 1 for memory error. */
-int printcolors(unsigned char *imgdata, int w, int h, int ch)
-{
-    unsigned char *data_end;
-    Color         **colorarr, col;
-    size_t        len, currpos;
-
-    len = w*h;
-    currpos = 0;
-    colorarr = calloc(len, sizeof(Color));
-    if (!colorarr)
-        return 1; /* memory error */
-
-    /* The image data is composed of bytes representing every pixel in 
-     * the image. The pixels in turn are represented of red, green and
-     * blue values. If there are 4 channels, there's an alpha value, too,
-     * and must be taken in consideration. */
-    
-    data_end = imgdata + w*h*ch;    /* get end of image_data */
-    col.alpha = 0xFF;               /* default value for alpha */
-
-    while(imgdata < data_end) {     /* read data and get color values */
-        col.red = *imgdata++;
-        col.green = *imgdata++;
-        col.blue = *imgdata++;
-        if (ch == 4)
-            col.alpha = *imgdata++;
-        
-        if (checkdup(colorarr, currpos, col))
-            continue;
-        colorarr[currpos++] = color_colordup(&col);
-    }
-    
-    for (size_t i = 0; i < currpos; i++) {  /* print and delete */
-        color_print(colorarr[i]);
-        free(colorarr[i]);
-    }
-    free(colorarr);
-
-    return 0;
-}
-
-int checkdup(Color **arr, size_t currpos, Color c)
-{
-    size_t i;
-    if (!arr || currpos == 0)
-        return 0;
-    for (i = 0; i < currpos; i++) {
-        if (color_colorcmp(&c, arr[i]))
-            return 1;   /* found */
-    }
-    return 0;   /* not found */
 }
 

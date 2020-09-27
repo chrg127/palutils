@@ -9,18 +9,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <setjmp.h>
-#include <png.h>
-#include <zlib.h>
-
-#include "writepng.h"
-#include "colorutils.h"
+#include "pngimage.h"
+#include "color.h"
+#include "autoarray.h"
 
 #define DEBUG
 
 int readcolor(FILE *stream, Color *c);
 int writeimage(FILE *fimg, Color **arr, size_t arrlen);
-int checkdup(Color **arr, size_t currpos, Color c);
 
 #ifdef _WIN32   /* Windows doesn't have a getline function. */
 typedef intptr_t ssize_t;
@@ -29,105 +25,6 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 
 #define STARTLEN 10
 #define IMGNAME "palette.png"
-
-int main(int argc, char **argv)
-{
-    FILE *infile, *fimg;
-    int ret, err;
-    Color **colorarr, col;
-    size_t currpos, arrlen, linen;
-    
-    if (argc > 2) {
-        printf("Usage: %s [LIST FILE]\n", *argv);
-        return 1;
-    }
-
-    infile = fimg = NULL;
-    ret = err = 0;
-
-    currpos = 0;    /* allocate array of colors */
-    arrlen = STARTLEN;
-    colorarr = calloc(arrlen, sizeof(Color *));
-    if (!colorarr) {
-        fputs("ERROR: Out of memory\n", stderr);
-        return 1;
-    }
-
-    if (argc == 1)  /* if no argument, read from standard input */
-        infile = stdin;
-    else if (argc == 2) {
-        infile = fopen(argv[1], "r");
-        if (!infile) {
-            fprintf(stderr, "ERROR: %s: no such file or directory", 
-                    argv[1]);
-            ret = 1;
-            goto cleanup;
-        }
-    }
-
-    /* read next color from stream and insert into the color array */
-    linen = 0;  /* keep the line number for error message */
-    while ((err = readcolor(infile, &col)) == 0) {
-        linen++;
-        if (checkdup(colorarr, currpos, col))   /* check for duplicates */
-            continue;
-        if (currpos == arrlen) {    /* expand array if needed */
-            arrlen << 1; /* multiply by 2 */
-            colorarr = reallocarray(colorarr, arrlen, sizeof(Color *));
-            if (!colorarr) {
-                fputs("ERROR: Out of memory\n", stderr);
-                ret = 1;
-                goto cleanup;
-            }
-        }
-        colorarr[currpos++] = color_colordup(&col); /* insert */
-    }
-    
-    if (err == 1) {
-        fprintf(stderr, "ERROR: list format error at line %ld\n", linen);
-        ret = 1;
-        goto cleanup;
-    }
-
-#ifdef DEBUG
-    for (size_t i = 0; i < currpos; i++)
-        color_print(colorarr[i]);
-#endif
-
-    fimg = fopen(IMGNAME, "wb");    /* open image file */
-    if (!fimg) {
-        fprintf(stderr, "ERROR: Can't open %s for writing\n", IMGNAME);
-        ret = 1;
-        goto cleanup;
-    }
-    
-    /* write color array to image */
-    err = writeimage(fimg, colorarr, currpos);
-    switch (err) {
-    case 2:
-        fputs("ERROR: Out of memory\n", stderr);
-        ret = 1;
-        goto cleanup;
-    case 3:
-        fputs("ERROR: lipng error\n", stderr);
-        ret = 1;
-        goto cleanup;
-    default:
-        printf("Wrote list to %s file\n", IMGNAME);
-    }
- 
-cleanup:
-    if (colorarr) {
-        for (size_t i = 0; i < currpos; i++)
-            free(colorarr[i]);
-        free(colorarr);
-    }
-    if (infile)
-        fclose(infile);
-    if (fimg)
-        fclose(fimg);
-    return ret;
-}
 
 /* Gets the next color from stream.
  * 
@@ -294,5 +191,104 @@ int checkdup(Color **arr, size_t currpos, Color c)
             return 1;   /* found */
     }
     return 0;   /* not found */
+}
+
+int main(int argc, char **argv)
+{
+    FILE *infile, *fimg;
+    int ret, err;
+    Color **colorarr, col;
+    size_t currpos, arrlen, linen;
+    
+    if (argc > 2) {
+        printf("Usage: %s [LIST FILE]\n", *argv);
+        return 1;
+    }
+
+    infile = fimg = NULL;
+    ret = err = 0;
+
+    currpos = 0;    /* allocate array of colors */
+    arrlen = STARTLEN;
+    colorarr = calloc(arrlen, sizeof(Color *));
+    if (!colorarr) {
+        fputs("ERROR: Out of memory\n", stderr);
+        return 1;
+    }
+
+    if (argc == 1)  /* if no argument, read from standard input */
+        infile = stdin;
+    else if (argc == 2) {
+        infile = fopen(argv[1], "r");
+        if (!infile) {
+            fprintf(stderr, "ERROR: %s: no such file or directory", 
+                    argv[1]);
+            ret = 1;
+            goto cleanup;
+        }
+    }
+
+    /* read next color from stream and insert into the color array */
+    linen = 0;  /* keep the line number for error message */
+    while ((err = readcolor(infile, &col)) == 0) {
+        linen++;
+        if (checkdup(colorarr, currpos, col))   /* check for duplicates */
+            continue;
+        if (currpos == arrlen) {    /* expand array if needed */
+            arrlen << 1; /* multiply by 2 */
+            colorarr = reallocarray(colorarr, arrlen, sizeof(Color *));
+            if (!colorarr) {
+                fputs("ERROR: Out of memory\n", stderr);
+                ret = 1;
+                goto cleanup;
+            }
+        }
+        colorarr[currpos++] = color_colordup(&col); /* insert */
+    }
+    
+    if (err == 1) {
+        fprintf(stderr, "ERROR: list format error at line %ld\n", linen);
+        ret = 1;
+        goto cleanup;
+    }
+
+#ifdef DEBUG
+    for (size_t i = 0; i < currpos; i++)
+        color_print(colorarr[i]);
+#endif
+
+    fimg = fopen(IMGNAME, "wb");    /* open image file */
+    if (!fimg) {
+        fprintf(stderr, "ERROR: Can't open %s for writing\n", IMGNAME);
+        ret = 1;
+        goto cleanup;
+    }
+    
+    /* write color array to image */
+    err = writeimage(fimg, colorarr, currpos);
+    switch (err) {
+    case 2:
+        fputs("ERROR: Out of memory\n", stderr);
+        ret = 1;
+        goto cleanup;
+    case 3:
+        fputs("ERROR: lipng error\n", stderr);
+        ret = 1;
+        goto cleanup;
+    default:
+        printf("Wrote list to %s file\n", IMGNAME);
+    }
+ 
+cleanup:
+    if (colorarr) {
+        for (size_t i = 0; i < currpos; i++)
+            free(colorarr[i]);
+        free(colorarr);
+    }
+    if (infile)
+        fclose(infile);
+    if (fimg)
+        fclose(fimg);
+    return ret;
 }
 

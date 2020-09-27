@@ -1,79 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "colorutils.h"
+#include "color.h"
+#include "autoarray.h"
+#include "debug.h"
 
 #define STARTSIZE 16
 
-int findvaluesfile(FILE *fin, Color **arr, size_t *currpos, size_t *arrlen);
-int findnextvalue(FILE *f, Color *col);
-int checkdup(Color *arr, size_t currpos, Color c);
+int findcolors(FILE *fin, AutoArray *arr);
+int findnext(FILE *f, Color *col);
+Color *dupcolor(Color c);
 
-int main(int argc, char **argv)
-{
-    FILE *infile;
-    Color *colorarr;
-    size_t currpos, arrlen;
-    int retval = 0;
-    
-    currpos = 0;        /* initialize array */
-    arrlen = STARTSIZE;
-    colorarr = calloc(arrlen, sizeof(Color));
-    if (!colorarr) {
-        fputs("ERROR: Out of memory\n", stderr);
-        return 1;
-    }
-
-    if (argc == 1) {        /* no arguments: get values from stdin */
-        retval = findvaluesfile(stdin, &colorarr, &currpos, &arrlen);
-        if (retval == 1)
-            goto cleanup;
-    } else {
-        while (--argc) {    /* get values from every file passed as arguments */
-            infile = fopen(*++argv, "r");
-            if (!infile) {
-                fprintf(stderr, "ERROR: %s: no such file or directory\n", *argv);
-                continue;
-            }
-            retval = findvaluesfile(infile, &colorarr, &currpos, &arrlen);
-            if (retval == 1)
-                break;
-            fclose(infile);
-            infile = NULL;
-        }
-    }
-
-    for (size_t i = 0; i < currpos; i++)
-        color_print(&colorarr[i]);
-cleanup:
-    free(colorarr);
-    if (infile)
-        fclose(infile);
-    return retval;
-}
-
-int findvaluesfile(FILE *fin, Color **arr, size_t *currpos, size_t *arrlen)
+int findcolors(FILE *fin, AutoArray *arr)
 {
     int err;
     Color col;
 
-    while ((err = findnextvalue(fin, &col)) != EOF) {
-        if (checkdup(*arr, *currpos, col))
+    while (err = findnext(fin, &col), err != EOF) {
+        if (autoarr_find(arr, &col, color_compare) != NULL)
             continue;
-        if (*currpos == *arrlen) {
-            (*arrlen) *= 2;
-            *arr = reallocarray(*arr, *arrlen, sizeof(Color *));
-            if (!(*arr))
-                return 1;   /* memory error */
-        }
-        (*arr)[(*currpos)++] = col;
+        autoarr_append(arr, dupcolor(col));
     }
-
     return 0;
 }
 
 /* Returns EOF if f is NULL or if reached end of file */
-int findnextvalue(FILE *f, Color *col)
+int findnext(FILE *f, Color *cptr)
 {
     char colstr[9]; /* +1 for terminating character */
     int i, c;
@@ -81,31 +33,72 @@ int findnextvalue(FILE *f, Color *col)
     if (!f)
         return EOF;
 
-    while ((c = getc(f)) != EOF) {
+    while (c = getc(f), c != EOF) {
         if (c != '#')
             continue;
         i = 0;
-        while (isxdigit(c = getc(f)) && i != 8) /* collect value */
+        /* collect value */
+        while (isxdigit(c = getc(f)) && i != 8)
             colstr[i++] = toupper(c);
         colstr[i] = '\0';
-        if (!color_iscolor(colstr))
+        if (color_strtocolor(colstr, cptr) != 0)
             continue;
-        color_strtocolor(colstr, col);
         return 0;
     }
 
     return EOF;
 }
 
-int checkdup(Color *arr, size_t currpos, Color c)
+Color *dupcolor(Color c)
 {
-    size_t i;
-    if (!arr || currpos == 0)
-        return 0;
-    for (i = 0; i < currpos; i++) {
-        if (color_colorcmp(&c, &arr[i]))
-            return 1;   /* found */
+    Color *cptr = malloc(sizeof(Color));
+    if (!cptr)
+        return NULL;
+    cptr->value = c.value;
+    return cptr;
+}
+
+int main(int argc, char **argv)
+{
+    FILE *infile = NULL;
+    int retval = 0;
+    AutoArray *autarr;
+
+    autarr = autoarr_make();
+    if (!autarr) {
+        error("out of memory\n");
+        return 1;
     }
-    return 0;   /* not found */
+
+    if (argc == 1) {        /* no arguments: get values from stdin */
+        retval = findcolors(stdin, autarr);
+        if (retval == 1)
+            goto cleanup;
+    } else {
+        while (--argc) {    /* get values from every file passed as arguments */
+            infile = fopen(*++argv, "r");
+            if (!infile) {
+                error("%s: no such file or directory\n", *argv);
+                continue;
+            }
+            retval = findcolors(infile, autarr);
+            if (retval == 1)
+                break;
+            fclose(infile);
+            infile = NULL;
+        }
+    }
+
+    for (size_t i = 0; i < AUTOARR_SIZE(autarr); i++) {
+        Color *tmp = (Color *) AUTOARR_GET(autarr, i);
+        printf("%08X\n", tmp->value);
+        free(tmp);
+    }
+
+cleanup:
+    autoarr_free(autarr);
+    if (infile)
+        fclose(infile);
+    return retval;
 }
 

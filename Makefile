@@ -9,19 +9,18 @@ LIBS = $(SHLIBS)
 OBJDIR = obj
 BINDIR = out
 
-HEADERS = colorutils.h readpng.h writepng.h
+HEADERS = readpng.h writepng.h color.h autoarray.h debug.h pngimage.h
 
-_GETPALOBJ = getpal.o colorutils.o readpng.o
+_GETPALOBJ = getpal.o color.o pngimage.o debug.o
 GETPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_GETPALOBJ))
 
 _MAKEPALOBJ = makepal.o colorutils.o writepng.o
 MAKEPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_MAKEPALOBJ))
 
-_GETCVALOBJ = getcolorvals.o colorutils.o
+_GETCVALOBJ = getcolorvals.o color.o autoarray.o debug.o
 GETCVALOBJ = $(patsubst %,$(OBJDIR)/%,$(_GETCVALOBJ))
 
-#rules start here
-default: #default: do nothing
+default:
 	$(info Please select a target (getcolorvals | getpal | makepal))
 
 #debug rules
