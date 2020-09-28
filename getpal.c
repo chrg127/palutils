@@ -14,7 +14,8 @@
 #include <png.h>
 #include "pngimage.h"
 #include "color.h"
-#include "debug.h"
+
+#define error(...) do { fprintf(stderr, "error: " __VA_ARGS__); } while (0)
 
 const Image pngimage_default = { NULL, 0, 0, NULL, NULL, 0, 0, 0 };
 
@@ -106,8 +107,8 @@ int main(int argc, char **argv)
             error("out of memory\n");
             return 1;
         }
-
-        pngimage_read_cleanup(&img);
+        
+        free(img.data);
         fclose(infile);
     }
     return 0;

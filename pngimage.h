@@ -20,9 +20,7 @@ enum {
 };
 
 int     pngimage_read_image(Image *img, FILE *infile);
-void    pngimage_read_cleanup(Image *img);
 int     pngimage_write_image_rgba(Image *img, FILE *outfile);
-void    pngimage_write_cleanup(Image *img);
 
 #endif
 

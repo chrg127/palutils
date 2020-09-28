@@ -33,6 +33,7 @@ int autoarr_append(AutoArray *arr, void *elem)
             return AUTOARR_ERR_NOMEM;
     }
     arr->arr[arr->s++] = elem;
+    return 0;
 }
 
 void *autoarr_change(AutoArray *arr, size_t i, void *data)
@@ -52,6 +53,7 @@ void *autoarr_removelast(AutoArray *arr)
         return NULL;
     void *elem = arr->arr[arr->s];
     arr->s--;
+    return elem;
 }
 
 void *autoarr_find(AutoArray *arr, const void *data,

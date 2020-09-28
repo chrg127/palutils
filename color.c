@@ -86,3 +86,13 @@ int color_compare(const void *c1, const void *c2)
         return 1;
     return 0;
 }
+
+Color *color_dup(Color c)
+{
+    Color *cptr = malloc(sizeof(Color));
+    if (!cptr)
+        return NULL;
+    cptr->value = c.value;
+    return cptr;
+}
+

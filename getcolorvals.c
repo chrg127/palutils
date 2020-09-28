@@ -3,13 +3,11 @@
 #include <ctype.h>
 #include "color.h"
 #include "autoarray.h"
-#include "debug.h"
 
-#define STARTSIZE 16
+#define error(...) do { fprintf(stderr, "error: " __VA_ARGS__); } while (0)
 
 int findcolors(FILE *fin, AutoArray *arr);
 int findnext(FILE *f, Color *col);
-Color *dupcolor(Color c);
 
 int findcolors(FILE *fin, AutoArray *arr)
 {
@@ -19,7 +17,7 @@ int findcolors(FILE *fin, AutoArray *arr)
     while (err = findnext(fin, &col), err != EOF) {
         if (autoarr_find(arr, &col, color_compare) != NULL)
             continue;
-        autoarr_append(arr, dupcolor(col));
+        autoarr_append(arr, color_dup(col));
     }
     return 0;
 }
@@ -47,15 +45,6 @@ int findnext(FILE *f, Color *cptr)
     }
 
     return EOF;
-}
-
-Color *dupcolor(Color c)
-{
-    Color *cptr = malloc(sizeof(Color));
-    if (!cptr)
-        return NULL;
-    cptr->value = c.value;
-    return cptr;
 }
 
 int main(int argc, char **argv)

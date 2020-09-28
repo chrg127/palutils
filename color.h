@@ -19,6 +19,7 @@ typedef union {
 int     color_strtocolor(char *s, Color *c);
 void    color_formatcolor(char *s);
 int     color_compare(const void *c1, const void *c2);
+Color  *color_dup(Color c);
 
 #endif
 

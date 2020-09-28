@@ -1,7 +1,7 @@
 #.SUFFIXES: .o .c
 
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -pipe
 SHLIBS = -lz -lpng
 STLIBS = -l:libpng.a -l:libz.a
 LIBS = $(SHLIBS)
@@ -9,15 +9,15 @@ LIBS = $(SHLIBS)
 OBJDIR = obj
 BINDIR = out
 
-HEADERS = readpng.h writepng.h color.h autoarray.h debug.h pngimage.h
+HEADERS = color.h autoarray.h pngimage.h
 
-_GETPALOBJ = getpal.o color.o pngimage.o debug.o
+_GETPALOBJ = getpal.o color.o pngimage.o
 GETPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_GETPALOBJ))
 
-_MAKEPALOBJ = makepal.o colorutils.o writepng.o
+_MAKEPALOBJ = makepal.o color.o pngimage.o autoarray.o
 MAKEPALOBJ = $(patsubst %,$(OBJDIR)/%,$(_MAKEPALOBJ))
 
-_GETCVALOBJ = getcolorvals.o color.o autoarray.o debug.o
+_GETCVALOBJ = getcolorvals.o color.o autoarray.o
 GETCVALOBJ = $(patsubst %,$(OBJDIR)/%,$(_GETCVALOBJ))
 
 default:
@@ -32,6 +32,15 @@ debug_makepal: makepal
 
 debug_getcval: CFLAGS += -g
 debug_getcval: getcolorvals
+
+rel_getpal: CFLAGS += -O2
+rel_getpal: getpal
+
+rel_makepal: CFLAGS += -O2
+rel_makepal: makepal
+
+rel_getcval: CFLAGS += -O2
+rel_getcval: getcolorvals
 
 #the '%' is special. must be including headers too, so if they change, the .c files will get recompiled.
 $(OBJDIR)/%.o: %.c $(HEADERS)
