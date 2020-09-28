@@ -65,29 +65,6 @@ int color_strtocolor(char *s, Color *c)
     return 0;
 }
 
-// void whateevr(char *s, Color *s)
-// {
-//     char v[3]; /* container for strings of single values */
-//     int len = strlen(s);
-
-//     v[2] = \0';
-//     if (s[0] == '#') {  /* check for leading '#' */
-//         ++s;
-//         --len;
-//     }
-//     strncpy(v, s, 2); /* extract the singles values */
-//     *red = color_htoi(v);
-//     strncpy(v, s+2, 2);
-//     *green = color_htoi(v);
-//     strncpy(v, s+4, 2);
-//     *blue = color_htoi(v);
-//     if (len == 8) {         /* check for alpha */
-//         strncpy(v, s+6, 2);
-//         *alpha = color_htoi(v);
-//     } else
-//         *alpha = 0xFF;
-// }
-
 void color_formatcolor(char *s)
 {
     int i;

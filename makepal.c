@@ -14,37 +14,33 @@
 #include "autoarray.h"
 
 #define DEBUG
+#define error(...) do { fprintf(stderr, "error: " __VA_ARGS__); } while (0)
+#define STARTLEN 10
+#define IMGNAME "palette.png"
 
 int readcolor(FILE *stream, Color *c);
-int writeimage(FILE *fimg, Color **arr, size_t arrlen);
+int writeimage(const char *fname, AutoArray *arr);
+int process(FILE *infile, const char *name);
+Color *dupcolor(Color c);
 
 #ifdef _WIN32   /* Windows doesn't have a getline function. */
 typedef intptr_t ssize_t;
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 
-#define STARTLEN 10
-#define IMGNAME "palette.png"
-
 /* Gets the next color from stream.
- * 
  * Stream is a file containing a list which should be formatted like this:
  * 0CFA2E25
  * 09BC6751
  * ...
  * Blank lines are skipped.
- * 
- * Returns 0 for success, 1 for list format error, 2 for getline failure, 
- * 3 for bad argument */
-int readcolor(FILE *stream, Color *c)
+ * Returns 0 for success, 1 for list format error, 2 for getline failure */
+int readcolor(FILE *stream, Color *cptr)
 {
     ssize_t llen;
     char *line = NULL;
     size_t n = 0;
     int ret = 0;
-    
-    if (!stream || !c)
-        return 3;               /* bad arg */
 
     llen = getline(&line, &n, stream);  /* get next line and examine it */
     if (llen == -1) {
@@ -53,11 +49,10 @@ int readcolor(FILE *stream, Color *c)
     }
     if (line[llen-1] == '\n')   /* remove newline */
         line[llen-1] = '\0';
-    if (!color_iscolor(line)) {
+    if (color_strtocolor(line, cptr) != 0) {
         ret = 1;                /* list format error */
         goto cleanup;
     }
-    color_strtocolor(line, c);  /* convert to color */
 
 cleanup:
     if (line)
@@ -66,70 +61,51 @@ cleanup:
 }
 
 /* Writes the colors contained in arr into an image file.
- * Returns 1 for general error, 2 for memory
- * error, 3 for libpng problem */
-int writeimage(FILE *fimg, Color **arr, size_t arrlen)
+ * Returns 1 for general error, 2 for memory error, 3 for libpng problem */
+int writeimage(const char *fname, AutoArray *arr)
 {
-    mainprog_info maininfo;
-    int err, ret = 0;
+    int err;
     size_t i, j;
-    
-    if (!fimg || !arr || arrlen == 0)
+    Image img = { .w = AUTOARR_SIZE(arr), .h = 1, .ch = 4};
+    FILE *outfile;
+
+    /* set up output file */
+    outfile = fopen(fname, "w");
+    if (!outfile)
         return 1;
-    
-    /* Set up the simplest possible mainprog_info: 
-     * we want only an IHDR chunk, an IDAT chunk and an IEND chunk */
-    maininfo.outfile      = fimg;
-    maininfo.width        = arrlen;
-    maininfo.height       = 1;
-    maininfo.sample_depth = 8;
-    maininfo.filter       = 0;
-    maininfo.interlaced   = 0;
-    maininfo.have_bg      = 0;
-    maininfo.have_time    = 0;
-    maininfo.have_text    = 0;
-    maininfo.gamma        = 0.0;
 
-    err = writepng_init(&maininfo, PNG_COLOR_TYPE_RGBA);
-    if (err == 2) {
-        ret = 3;    /* libpng problem */
-        goto cleanup;
-    } else if (err == 4) {
-        ret = 2;    /* memory error */
+    /* set up image data */
+    img.data = malloc(AUTOARR_SIZE(arr)*4*sizeof(char));
+    if (!img.data) {
+        err = 2;
         goto cleanup;
     }
- 
-    maininfo.image_data = malloc(arrlen*4*sizeof(char));
-    if (!maininfo.image_data) {
-        ret = 2;    /* memory error */
-        goto cleanup;
+    for (i = 0, j = 0; i < AUTOARR_SIZE(arr); i++) {
+        Color *tmp = (Color *) AUTOARR_GET(arr, i);
+        img.data[j++] = tmp->red;
+        img.data[j++] = tmp->green;
+        img.data[j++] = tmp->blue;
+        img.data[j++] = tmp->alpha;
     }
 
-    /* Fill data for one row and encode the row.
-     * due to the nature of this program, we just need to set up one row.
-     * To get an image with more than one row, you need to loop over
-     * rows too. */
-    for (i = 0, j = 0; i < arrlen; i++) {   /* fill image_data */
-        maininfo.image_data[j++] = arr[i]->red;
-        maininfo.image_data[j++] = arr[i]->green;
-        maininfo.image_data[j++] = arr[i]->blue;
-        maininfo.image_data[j++] = arr[i]->alpha;
-    }
+    err = pngimage_write_image_rgba(&img, outfile);
+
+    // err = writepng_init(&maininfo, PNG_COLOR_TYPE_RGBA);
+    // if (err == 2) {
+    //     ret = 3;    /* libpng problem */
+    //     goto cleanup;
+    // } else if (err == 4) {
+    //     ret = 2;    /* memory error */
+    //     goto cleanup;
+    // }
 
     err = 0;
-    err = writepng_encode_row(&maininfo);
-    err = writepng_encode_finish(&maininfo);
-    if (err == 2) {
-        ret = 3;    /* libpng error */
-        goto cleanup;
-    }
-
 cleanup:
-    fclose(fimg);
-    if (maininfo.image_data)
-        free(maininfo.image_data);
-    writepng_cleanup(&maininfo);
-    return ret;
+    fclose(outfile);
+    if (img.data)
+        free(img.data);
+    pngimage_write_cleanup(&img);
+    return err;
 }
 
 /* An implementation of getline for Windows.
@@ -179,116 +155,101 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 }
 #endif
 
-/* Checks for duplicates in a color array.
- * Returns 1 if found, 0 if not found or if arr is empty. */
-int checkdup(Color **arr, size_t currpos, Color c)
+/* returns non-zero for any important error */
+int process(FILE *infile, const char *name)
 {
-    size_t i;
-    if (!arr || currpos == 0)
-        return 0;
-    for (i = 0; i < currpos; i++) {
-        if (color_colorcmp(&c, arr[i]))
-            return 1;   /* found */
-    }
-    return 0;   /* not found */
-}
+    size_t linen;
+    int err;
+    Color c;
+    AutoArray *autarr;
 
-int main(int argc, char **argv)
-{
-    FILE *infile, *fimg;
-    int ret, err;
-    Color **colorarr, col;
-    size_t currpos, arrlen, linen;
-    
-    if (argc > 2) {
-        printf("Usage: %s [LIST FILE]\n", *argv);
+    linen = err = 0;
+    autarr = autoarr_make();
+    if (!autarr)
         return 1;
-    }
 
-    infile = fimg = NULL;
-    ret = err = 0;
-
-    currpos = 0;    /* allocate array of colors */
-    arrlen = STARTLEN;
-    colorarr = calloc(arrlen, sizeof(Color *));
-    if (!colorarr) {
-        fputs("ERROR: Out of memory\n", stderr);
-        return 1;
-    }
-
-    if (argc == 1)  /* if no argument, read from standard input */
-        infile = stdin;
-    else if (argc == 2) {
-        infile = fopen(argv[1], "r");
-        if (!infile) {
-            fprintf(stderr, "ERROR: %s: no such file or directory", 
-                    argv[1]);
-            ret = 1;
+    while (err = readcolor(infile, &c), err == 0) {
+        if (autoarr_find(autarr, &c, color_compare) != NULL)
+            continue;
+        if (autoarr_append(autarr, dupcolor(c)) == AUTOARR_ERR_NOMEM) {
+            err = 2;
             goto cleanup;
         }
     }
-
-    /* read next color from stream and insert into the color array */
-    linen = 0;  /* keep the line number for error message */
-    while ((err = readcolor(infile, &col)) == 0) {
-        linen++;
-        if (checkdup(colorarr, currpos, col))   /* check for duplicates */
-            continue;
-        if (currpos == arrlen) {    /* expand array if needed */
-            arrlen << 1; /* multiply by 2 */
-            colorarr = reallocarray(colorarr, arrlen, sizeof(Color *));
-            if (!colorarr) {
-                fputs("ERROR: Out of memory\n", stderr);
-                ret = 1;
-                goto cleanup;
-            }
-        }
-        colorarr[currpos++] = color_colordup(&col); /* insert */
-    }
-    
     if (err == 1) {
-        fprintf(stderr, "ERROR: list format error at line %ld\n", linen);
-        ret = 1;
+        error("line %ld: list format error\n", linen);
+        err = 0;
         goto cleanup;
     }
 
-#ifdef DEBUG
-    for (size_t i = 0; i < currpos; i++)
-        color_print(colorarr[i]);
-#endif
-
-    fimg = fopen(IMGNAME, "wb");    /* open image file */
-    if (!fimg) {
-        fprintf(stderr, "ERROR: Can't open %s for writing\n", IMGNAME);
-        ret = 1;
+    err = writeimage(name, autarr);
+    switch (err) {
+    case 1:
+        error("can't open %s for writing\n", IMGNAME);
+        err = 0;
         goto cleanup;
+    case 2: err = 2; goto cleanup;
+    case 3: err = 3; goto cleanup;
+    default:
+#ifdef DEBUG
+        fprintf(stderr, "wrote list to %s file\n", IMGNAME);
+#endif
     }
     
-    /* write color array to image */
-    err = writeimage(fimg, colorarr, currpos);
-    switch (err) {
-    case 2:
-        fputs("ERROR: Out of memory\n", stderr);
-        ret = 1;
-        goto cleanup;
-    case 3:
-        fputs("ERROR: lipng error\n", stderr);
-        ret = 1;
-        goto cleanup;
-    default:
-        printf("Wrote list to %s file\n", IMGNAME);
-    }
- 
+    err = 0;
 cleanup:
-    if (colorarr) {
-        for (size_t i = 0; i < currpos; i++)
-            free(colorarr[i]);
-        free(colorarr);
+    for (int i = 0; i < AUTOARR_SIZE(autarr); i++) {
+        Color *tmp = (Color *) AUTOARR_GET(autarr, i);
+        free(tmp);
     }
-    if (infile)
-        fclose(infile);
-    if (fimg)
-        fclose(fimg);
-    return ret;
+    autoarr_free(autarr);
+    return err;
+}
+
+Color *dupcolor(Color c)
+{
+    Color *cptr = malloc(sizeof(Color));
+    if (!cptr)
+        return NULL;
+    cptr->value = c.value;
+    return cptr;
+}
+
+
+int main(int argc, char **argv)
+{
+    FILE *infile;
+    int err;
+
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [LIST FILE]\n", *argv);
+        return 1;
+    }
+
+    infile = NULL;
+    if (argc == 1) {
+        err = process(stdin, IMGNAME);
+    } else {
+        while (++argv, --argc > 0) {
+            infile = fopen(*argv, "r");
+            if (!infile) {
+                error("%s: no such file or directory", argv[1]);
+                return 1;
+            }
+            err = process(infile, IMGNAME);
+            fclose(infile);
+            if (err != 0)
+                break;
+        }
+    }
+
+    if (err != 0) {
+        switch (err) {
+        case 2: error("out of memory\n"); break;
+        case 3: error("libpng error\n"); break;
+        }
+        return 1;
+    }
+    return 0;
 }
 

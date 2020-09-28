@@ -86,7 +86,7 @@ int writepng_init(mainprog_info *mainprog_ptr, int color_type)
     png_structp png_ptr; /* note:  temporary variables! */
     png_infop info_ptr;
     int interlace_type;
-    
+
     /* create the png struct and set up a custom error handler */
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, mainprog_ptr, 
             writepng_error_handler, NULL);

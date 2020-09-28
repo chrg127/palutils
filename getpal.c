@@ -87,22 +87,16 @@ int main(int argc, char **argv)
             continue;
         }
 
-        err = pngimage_read_init(&img, infile);
+        err = pngimage_read_image(&img, infile);
         switch (err) {
         case IMAGE_ERR_NOTIMAGE:
             error("%s: not an image file\n", *argv);
             fclose(infile);
             continue;
-        case IMAGE_ERR_NOMEM: 
+        case IMAGE_ERR_NOMEM:
             error("out of memory\n");
             return 1;
         case IMAGE_ERR_GENERIC:
-            error("libpng error\n");
-            return 1;
-        }
-
-        err = pngimage_read_fillimgdata(&img);
-        if (err != 0) {
             error("libpng error\n");
             return 1;
         }
